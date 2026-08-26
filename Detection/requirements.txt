@@ -1,6 +1,0 @@
-# CWA - Object Detection (YOLO-only branch)
-# ultralytics tự kéo theo torch, torchvision, numpy, matplotlib, PyYAML...
-ultralytics==8.3.152
-pandas>=2.0.0
-openpyxl>=3.1.0
-PyYAML>=6.0
