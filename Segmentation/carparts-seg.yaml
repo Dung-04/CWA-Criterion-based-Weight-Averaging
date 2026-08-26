@@ -1,0 +1,37 @@
+# Project-pinned Carparts Segmentation dataset definition.
+# Source: https://docs.ultralytics.com/datasets/segment/carparts-seg/
+#
+# Keeping this YAML in the project avoids resolving the older dataset YAML
+# bundled with ultralytics==8.3.152.
+
+path: carparts-seg
+train: images/train  # 3156 images
+val: images/val      # 401 images
+test: images/test    # 276 images
+
+names:
+  0: back_bumper
+  1: back_door
+  2: back_glass
+  3: back_left_door
+  4: back_left_light
+  5: back_light
+  6: back_right_door
+  7: back_right_light
+  8: front_bumper
+  9: front_door
+  10: front_glass
+  11: front_left_door
+  12: front_left_light
+  13: front_light
+  14: front_right_door
+  15: front_right_light
+  16: hood
+  17: left_mirror
+  18: object
+  19: right_mirror
+  20: tailgate
+  21: trunk
+  22: wheel
+
+download: https://github.com/ultralytics/assets/releases/download/v0.0.0/carparts-seg.zip
