@@ -1,29 +1,29 @@
 """
 Main entrypoint — CWA Instance Segmentation (Ultralytics YOLO-seg).
 
-Nhánh này CHỈ dùng model YOLO. Mọi config chỉnh trong config.py; các giá trị
-hay dùng override được qua CLI (pattern như repo gốc).
+YOLO segmentation models only. All configuration lives in config.py; the
+commonly used values can be overridden on the CLI.
 
-    # Train (model lấy từ Config.MODEL, đặt tên experiment rõ ràng trên server)
+    # Train (model comes from Config.MODEL; give the experiment a clear name)
     python main.py train --exp-name yolov8s_exp1
     #   → results/segmentation/yolov8s_exp1/
     #       README.md, experiment_config.json,
     #       summary/{yolov8s_exp1_summary.xlsx, charts/},
     #       seeds/seed_<N>/{seed_<N>_results.xlsx, charts/, logs/}
 
-    # Đánh giá lại Baseline + CWA trên một run đã train
-    python main.py strategies --run-dir results/segmentation/<experiment>/seeds/seed_42
+    # Re-evaluate Baseline + CWA on an already trained run
+    python main.py methods --run-dir results/segmentation/<experiment>/seeds/seed_42
 
-    # Eval một file weights bất kỳ (in mAP/P/R/per-class AP + Excel)
+    # Evaluate any weights file (prints mAP/P/R/per-class AP + Excel)
     python main.py eval --weights <run>/weights/best.pt --split test
 
-    # Export Excel từ run dir (offline, chỉ cần results.csv)
+    # Export Excel from a run dir (offline, needs only results.csv)
     python main.py export --run-dir <run>
 
-    # Edge AI: xuất weights sang ONNX/TensorRT
+    # Edge AI: export weights to ONNX/TensorRT
     python main.py export-model --weights <run>/weights/best.pt
 
-Chi tiết về fitness, EMA, averaging và data split: README.md
+Details on fitness, EMA, averaging and the data split: see README.md
 """
 import argparse
 import sys
@@ -34,7 +34,7 @@ EVAL_SPLIT_CHOICES = ["val", "test", "train"]
 
 
 def configure_console_encoding():
-    """Cho phép help/log tiếng Việt chạy ổn định trên Windows console."""
+    """Keep UTF-8 help/log output working on Windows consoles."""
     for stream_name in ("stdout", "stderr"):
         stream = getattr(sys, stream_name, None)
         reconfigure = getattr(stream, "reconfigure", None)
@@ -42,25 +42,25 @@ def configure_console_encoding():
             try:
                 reconfigure(encoding="utf-8", errors="replace")
             except (OSError, ValueError):
-                # Một số IDE/notebook bọc stream và không cho reconfigure.
+                # Some IDEs/notebooks wrap the stream and disallow reconfigure.
                 pass
 
 
 def add_common_args(parser):
-    """Args chung cho mọi subcommand — mọi giá trị đều override Config."""
+    """Arguments shared by every subcommand. Each one overrides Config."""
     parser.add_argument(
         "--model",
         help="Model YOLO-seg: yolov8s-seg.pt, yolo11s-seg.pt, .pt/.yaml segmentation custom... "
              "Override Config.MODEL.",
     )
-    parser.add_argument("--data", help="carparts-seg.yaml hoặc path data.yaml segmentation custom.")
-    parser.add_argument("--val-ratio", type=float, help="Tỉ lệ tách val' từ train (0 = không tách).")
+    parser.add_argument("--data", help="carparts-seg.yaml or a path to a custom segmentation data.yaml.")
+    parser.add_argument("--val-ratio", type=float, help="Fraction split off train as val' (0 = no split).")
     parser.add_argument("--epochs", type=int, help="Override Config.EPOCHS.")
     parser.add_argument("--imgsz", type=int, help="Override Config.IMGSZ.")
     parser.add_argument("--batch", type=int, help="Override Config.BATCH (-1 = auto-batch).")
-    parser.add_argument("--device", help="Device: 0 | 0,1 | cpu. Mặc định auto.")
+    parser.add_argument("--device", help="Device: 0 | 0,1 | cpu. Auto by default.")
     parser.add_argument("--workers", type=int, help="Override Config.WORKERS.")
-    parser.add_argument("--seed", type=int, nargs="+", help="Override Config.RANDOM_SEED (chấp nhận 1 hoặc nhiều seed, ví dụ: --seed 42 100).")
+    parser.add_argument("--seed", type=int, nargs="+", help="Override Config.RANDOM_SEED (one or more seeds, e.g. --seed 42 100).")
     parser.add_argument("--optimizer", help="Override Config.OPTIMIZER (auto/SGD/AdamW/...).")
     parser.add_argument("--lr0", type=float, help="Override Config.LR0.")
     parser.add_argument("--lrf", type=float, help="Override Config.LRF.")
@@ -68,25 +68,25 @@ def add_common_args(parser):
     parser.add_argument(
         "--loss",
         choices=["bce", "focal"],
-        help="Override Config.LOSS_FUNCTION: 'bce' (mặc định Ultralytics) hoặc 'focal' (FocalBCE).",
+        help="Override Config.LOSS_FUNCTION: 'bce' (Ultralytics default) or 'focal' (FocalBCE).",
     )
     parser.add_argument("--focal-gamma", type=float, help="Override Config.FOCAL_GAMMA.")
     parser.add_argument("--focal-alpha", type=float, help="Override Config.FOCAL_ALPHA.")
-    parser.add_argument("--project", help="Override Config.PROJECT (thư mục output gốc).")
+    parser.add_argument("--project", help="Override Config.PROJECT (root output directory).")
     parser.add_argument(
         "--exp-name",
         "--exp_name",
         dest="exp_name",
-        help="Tên chính xác của thư mục experiment trên server, không tự ghép timestamp.",
+        help="Exact experiment directory name; no timestamp is appended.",
     )
     parser.add_argument(
         "--name",
-        help="Prefix legacy cho tên tự động khi không truyền --exp-name.",
+        help="Legacy prefix for the auto-generated name when --exp-name is omitted.",
     )
     parser.add_argument(
         "--split",
         choices=EVAL_SPLIT_CHOICES,
-        help="Split cho báo cáo cuối (Config.EVAL_SPLIT). Mặc định 'test'.",
+        help="Split used for final reporting (Config.EVAL_SPLIT). Default 'test'.",
     )
 
 
@@ -99,46 +99,47 @@ def parse_args():
 
     p_train = subparsers.add_parser(
         "train",
-        help="Train YOLO (val' tách riêng từ train) → so sánh Baseline vs "
-             "CWA trên test → export Excel.",
+        help="Train YOLO (val' carved from train), compare Baseline vs CWA "
+             "on test, export Excel.",
     )
     add_common_args(p_train)
     p_train.add_argument(
         "--no-cwa", action="store_true",
-        help="Tắt CWA (không lưu/average Top-K checkpoint).",
+        help="Disable CWA (no Top-K checkpoint saving or averaging).",
     )
     p_train.add_argument(
         "--export-after-train", action="store_true",
-        help="Bật Config.EXPORT_ENABLED: xuất model (ONNX/... theo config) sau train.",
+        help="Enable Config.EXPORT_ENABLED: export the model (ONNX/... per config) after training.",
     )
 
     p_strategies = subparsers.add_parser(
-        "strategies",
-        help="Đánh giá lại Baseline + CWA trên một run đã train + export Excel.",
+        "methods",
+        aliases=["strategies"],
+        help="Re-evaluate Baseline + CWA on an already trained run and export Excel.",
     )
     add_common_args(p_strategies)
-    p_strategies.add_argument("--run-dir", required=True, help="Run dir Ultralytics đã train.")
+    p_strategies.add_argument("--run-dir", required=True, help="An Ultralytics run directory that has already been trained.")
 
     p_eval = subparsers.add_parser(
-        "eval", help="Eval một file weights bằng model.val(), in metrics + export Excel."
+        "eval", help="Evaluate a weights file with model.val(); print metrics + export Excel."
     )
     add_common_args(p_eval)
-    p_eval.add_argument("--weights", help="Weights đã train (best.pt). Mặc định dùng Config.MODEL.")
-    p_eval.add_argument("--run-dir", help="Run dir chứa results.csv để ghép sheet PerEpoch.")
-    p_eval.add_argument("--no-excel", action="store_true", help="Chỉ in metrics, không export Excel.")
+    p_eval.add_argument("--weights", help="Trained weights (best.pt). Defaults to Config.MODEL.")
+    p_eval.add_argument("--run-dir", help="Run dir containing results.csv, to attach the PerEpoch sheet.")
+    p_eval.add_argument("--no-excel", action="store_true", help="Print metrics only; do not export Excel.")
 
     p_export = subparsers.add_parser(
-        "export", help="Export Excel (Summary + PerEpoch) từ run dir đã train (offline)."
+        "export", help="Export Excel (Summary + PerEpoch) from a trained run dir (offline)."
     )
     add_common_args(p_export)
-    p_export.add_argument("--run-dir", required=True, help="Run dir Ultralytics (chứa results.csv).")
+    p_export.add_argument("--run-dir", required=True, help="Ultralytics run dir (must contain results.csv).")
     p_export.add_argument("--output", dest="excel_output", help="Path file .xlsx output.")
 
     p_export_model = subparsers.add_parser(
-        "export-model", help="Edge AI: xuất weights đã train sang ONNX/TensorRT (model.export)."
+        "export-model", help="Edge AI: export trained weights to ONNX/TensorRT (model.export)."
     )
     add_common_args(p_export_model)
-    p_export_model.add_argument("--weights", required=True, help="Weights đã train cần export.")
+    p_export_model.add_argument("--weights", required=True, help="Trained weights to export.")
     p_export_model.add_argument("--format", dest="export_format", help="Override Config.EXPORT_FORMAT.")
     p_export_model.add_argument("--half", action="store_true", help="Export FP16 (Config.EXPORT_HALF).")
 
@@ -146,7 +147,7 @@ def parse_args():
 
 
 def apply_cli_overrides(args):
-    """CLI override lên Config — pattern giữ nguyên từ repo gốc."""
+    """Apply CLI overrides onto Config."""
     overrides = [
         ("MODEL", getattr(args, "model", None)),
         ("DATA", getattr(args, "data", None)),
@@ -193,11 +194,11 @@ def main():
 
         train_detector()
 
-    elif args.command == "strategies":
+    elif args.command in ("methods", "strategies"):
         Config.validate_config(require_model=False)
         from evaluate import run_method_evaluation
 
-        # data ưu tiên: --data > args.yaml của run > Config.DATA
+        # data precedence: --data > the run's args.yaml > Config.DATA
         data = args.data or None
         run_method_evaluation(args.run_dir, data=data)
 
@@ -212,7 +213,7 @@ def main():
 
         weights = args.weights or Config.MODEL
         run_dir = args.run_dir or infer_run_dir(weights)
-        # data ưu tiên: --data > args.yaml của run (giữ đúng holdout split) > Config.DATA
+        # data precedence: --data > run args.yaml (keeps the holdout split) > Config.DATA
         data = args.data or (resolve_data_from_run(run_dir) if run_dir else None) or Config.DATA
         metrics = evaluate_weights(weights, data, split=Config.EVAL_SPLIT)
         if not args.no_excel:

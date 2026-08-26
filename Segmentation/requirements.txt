@@ -1,6 +1,7 @@
 # CWA - Instance Segmentation (YOLO-seg)
-# ultralytics tự kéo theo torch, torchvision, numpy, matplotlib, PyYAML...
-# Khóa version vì pipeline dùng callback/checkpoint/SegmentMetrics nội bộ.
+# ultralytics pulls in torch, torchvision, numpy, matplotlib, PyYAML...
+# The version is pinned because the pipeline relies on internal Ultralytics
+# callbacks, the checkpoint format and SegmentMetrics.
 ultralytics==8.3.152
 pandas>=2.0.0
 openpyxl>=3.1.0
